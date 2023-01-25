@@ -2,28 +2,14 @@
    Core functions to produce an interactive Mandelbrot Set using HTML Web Workers
    This program relies heavily on HTML Web Workers, tranferable objects (via postMessage), and off-screen Canvas objects
    Copyright (c) 2019 - 2021 Greg Trounson greg@gart.nz
-   Copyright (c) 2022 Samuel Lockton lockton.sam@gmail.com
+   Copyright (c) 2022 - 2023 Samuel Lockton lockton.sam@gmail.com
    Modification and distribution permitted under terms of the Affero GPL version 3
 */
 
-var firstPinchDistance = 0;
 var mousePressed = 0;
-var start = performance.now();
-var rotationFrameStart = performance.now();
-var eventTime = 0;
-var posterTime = 0;
-var zoomTime = 0;
 var iterations = 1000;
-var startLine = 0;
-var maxBlockSize = 16;
-
+var maxBlockSize = 8;
 var zoom = 1;
-
-var startupTick = 0;
-var startupAnim = 1;
-const startZoom = 300;
-const minZoom = 100;
-const maxZoom = 2000000000000000;
 const canvasWidth = 800*2;
 const canvasHeight = 600*2;
 const scaleFactor = 2;
@@ -31,23 +17,10 @@ const scaleFactor = 2;
 const coarseWidth = canvasWidth/scaleFactor;
 const coarseHeight = canvasHeight/scaleFactor;
 
-var pointerInZoomIn = 0;
-var pointerInZoomOut = 0;
-
-var eventOccurred = 0;
-
 var screenX = canvasWidth/2+400;
 var screenY = canvasHeight/2;
-const xnormMin = -8;
-const xnormMax =  8;
-const ynormMin = -8;
-const ynormMax =  8;
 var xnorm = 0.0;
 var ynorm = 0.0;
-var xmouse = 0.0;
-var ymouse = 0.0;
-
-var dLink;
 
 var blockSize = new Uint8Array(16);
 blockSize[0] = 16;
@@ -97,34 +70,11 @@ const chunkHeight = canvasHeight / workers;
 
 var needRedraw = 0;
 var needRecompute = 1;
-var showAxes = 0;
 var smooth = 0;
 var mc = document.getElementById("mandelCanvas");
 mc.style = "width:" + window.innerWidth + "px; height:" + window.innerHeight + "px;"
 var viewportTag = document.getElementById("viewport");
 var mctx = mc.getContext("2d", { alpha: false } );
-var coordSourceText = document.getElementById("coordSource");
-var coordSource2Text = document.getElementById("coordSource2");
-var posterDialog = document.getElementById("posterDialog");
-var posterDialogBody = document.getElementById("posterDialogBody");
-var linkDialog = document.getElementById("linkDialog");
-var posterClose = document.getElementById("posterClose");
-var linkClose = document.getElementById("linkClose");
-var permalinkURL = document.getElementById("permalinkURL");
-var permalinkAnchor = document.getElementById("permalinkAnchor");
-var aboutBox = document.getElementById("aboutBox");
-var aboutBoxContent = document.getElementById("aboutBoxContent");
-var aboutClose = document.getElementById("aboutClose");
-var showInstructionsBtn = document.getElementById("showInstructionsBtn");
-var showMathematicsBtn = document.getElementById("showMathematicsBtn");
-var showFractalsBtn = document.getElementById("showFractalsBtn");
-var jumpSelect = document.getElementById("jumpTo");
-
-// High-resolution off-screen canvas for scaling
-var offScreen = document.createElement('canvas');
-var offScreenCtx = offScreen.getContext("2d", { alpha: false } );
-offScreen.width  = canvasWidth;
-offScreen.height = canvasHeight;
 
 // Coarse off-screen canvas
 var coarse = document.createElement('canvas');
@@ -275,9 +225,6 @@ function changePalette()
 	var g;
 	var b;
 	currentRotation = 0;
-//	currentPalette++;
-//	if( currentPalette > paletteCount )
-//		currentPalette = 0;
 	switch( currentPalette ) {
 	case 0: // Original DarkBlue-Yellow-Rose-Green
 		for( i=0; i<255; i++ ) {
@@ -591,7 +538,6 @@ function changePalette()
 document.body.onmousedown = function( e )
 {
 	mousePressed = 1;
-	eventTime = performance.now();
 	var rect = mc.getBoundingClientRect();
 	var cx = ( e.clientX - rect.left ) ;
 	var cy = ( e.clientY - rect.top ) ;
@@ -686,7 +632,6 @@ var onRenderEnded = function (e)
 		finished[workerID] = 1;
 		mSegment[workerID].data.set(mdSegment[workerID]);
 		lstartLine = Math.floor( workerID * chunkHeight );
-		offScreenCtx.putImageData( mSegment[workerID], 0,lstartLine );
 		//mctx.drawImage(offScreen, 0, 0, canvasWidth/scaleFactor, canvasHeight/scaleFactor);
 	} else {
 		mCoarseSegment[workerID].data.set(mdCoarseSegment[workerID]);
@@ -694,132 +639,9 @@ var onRenderEnded = function (e)
 		coarseCtx.putImageData( mCoarseSegment[workerID], 0,lstartLine );
 		mctx.drawImage( coarse, 0, 0 );
 	}
-
-
-	//console.log("Render workers running: "+renderWorkerRunning);
-	//console.log("Compute workers running: "+computeWorkerRunning);
-	if( workersRunning == 0 ) {
-		// Finished all drawing?
-		if(( ! eventOccurred ) && ( finished[0] ) && ( finished[1] ) && ( finished[2] ) && ( finished[3] )) {
-			//console.log("Worker "+workerID+" blockSize "+blockSize);
-			needRedraw = 0;
-			mctx.drawImage(offScreen, 0, 0, canvasWidth/scaleFactor, canvasHeight/scaleFactor);
-		}
-	}
-	if( startupAnim ) {
-		if( startupTick < 50 ) {
-			startupTick++;
-			zoom = Math.ceil(Math.sin( ( startupTick / 70 ) * Math.PI ) * ( startZoom + 80 ) );
-			// Take 20 performance samples at startup
-			if( startupTick > 29 ) {
-				if( startupTick > 30 )
-					timesTaken[startupTick-31] = performance.now() - timer;
-				timer = performance.now();
-			}
-		}
-		else {
-			// Average three of the near-best times sampled to get a rough delay
-			timesTakenSorted = timesTaken.sort( function(a,b){return a-b});
-			benchmarkTime = Math.min( Math.max( ( timesTakenSorted[5] + timesTakenSorted[6] + timesTakenSorted[7] ) / 3 , 2), 20 );
-			if( benchmarkTime < 7 )
-				maxBlockSize = 8;
-			else
-				maxBlockSize = 16;
-			blockSize[0] = maxBlockSize;
-			blockSize[1] = maxBlockSize;
-			blockSize[2] = maxBlockSize;
-			blockSize[3] = maxBlockSize;
-			// Vector: 1-2 ms
-			// mgl76: 7 ms
-			// Manuel remote: 10-14 ms
-			// GPT phone: 20-60 ms
-
-			//alert(' '+benchmarkTime+' ms' );
-			startupAnim = 0;
-			xnorm = ( canvasWidth/2*1.0 - screenX) / zoom;
-			ynorm = ( canvasHeight/2*1.0 - screenY) / zoom;
-			if( movingToSaved ) {
-				travelling = 1;
-				travelDirX = Math.sign( destX - xnorm );
-				travelDirY = Math.sign( destY - ynorm );
-				travelDirZoom = Math.sign( destZoom - zoom );
-			}
-		}
-	}
-	else if( travelling > 0 ) {
-		updateCoords( canvasWidth/2, canvasHeight/2, "centre" );
-		zoomText.textContent = Math.floor(zoom);
-		// Just zoom out first
-		if( travelling == 2 ) {
-			ldestX = -1.0;
-			ldestY = 0.0;
-			ldestZoom = 300;
-			if( ( zoom > Math.floor(ldestZoom) ) && ( ( ! pointOnScreen( destX, destY ) ) || (zoom > destZoom ) ) ) {
-				//xnorm = (canvasWidth/2-screenX)/zoom;
-				//ynorm = (canvasHeight/2-screenY)/zoom;
-				//zoom += (ldestZoom - zoom) / 10 * benchmarkTime;
-				zoom += Math.ceil( (ldestZoom - zoom) / 10 * (benchmarkTime/4 + 2) );
-
-				if(Math.abs( zoom - ldestZoom ) < 5 )
-					zoom = Math.floor(ldestZoom);
-
-				screenX = Math.round( -xnorm * zoom + canvasWidth/2 );
-				screenY = Math.round( -ynorm * zoom + canvasHeight/2 );
-			}
-			else {
-				travelling = 1;
-				travelDirX = Math.sign( destX - xnorm );
-				travelDirY = Math.sign( destY - ynorm );
-				travelDirZoom = Math.sign( destZoom - zoom );
-			}
-		}
-		// Then zoom in to the new location
-		else {
-			ldestX = destX;
-			ldestY = destY;
-			ldestZoom = destZoom;
-			if( ( xnorm != ldestX ) || ( ynorm != ldestY ) || ( zoom != ldestZoom ) || ( iterations < destIters ) ) {
-				if( iterations < destIters ) {
-					iterations += benchmarkTime * 2;
-					if( iterations > destIters )
-						iterations = destIters;
-					iterSlider.value = iterations;
-					itersInput.value = iterations;
-				}
-				//xnorm = ldestX;
-				//ynorm = ldestY;
-
-				// Snap to destination if "close enough" or if we overshot the mark
-				if(( Math.abs( ( xnorm - ldestX ) * zoom ) < 1 ) || ( Math.sign( ldestX - xnorm ) != travelDirX ))
-					xnorm = ldestX;
-				else
-					xnorm += (ldestX - xnorm ) / Math.log(zoom) / 4 * benchmarkTime * (movingToSaved*2+1);
-				if(( Math.abs( ( ynorm - ldestY ) * zoom ) < 1 ) || ( Math.sign( ldestY - ynorm ) != travelDirY ))
-					ynorm = ldestY;
-				else
-					ynorm += (ldestY - ynorm ) / Math.log(zoom) / 4 * benchmarkTime * (movingToSaved*2+1);
-				if(( Math.abs( ( zoom - ldestZoom ) / ldestZoom * 100 ) < 3 ) || ( Math.sign( ldestZoom - zoom ) != travelDirZoom ))
-					zoom = Math.floor(ldestZoom);
-				else
-					zoom += Math.max( Math.ceil (Math.log(ldestZoom - zoom)*(zoom / 2000) * benchmarkTime * (movingToSaved*4+1)), 1 );
-
-				screenX = Math.round( -xnorm * zoom + canvasWidth/2 );
-				screenY = Math.round( -ynorm * zoom + canvasHeight/2 );
-				//console.log(xnorm,ynorm, screenX,screenY, zoom);
-			}
-			else {
-				travelling = 0;
-				movingToSaved = 0;
-				start = performance.now();
-				zoom = Math.floor(zoom);
-			}
-		}
-	}
-	else if(( blockSize[workerID] >= 2 ) && ( ! eventOccurred ) && ( ! mousePressed )) {
-		if( performance.now() > zoomTime + 200 ) {
+	if(( blockSize[workerID] >= 2 ) && ( ! eventOccurred ) && ( ! mousePressed )) {
 			needToRun[workerID] = 1;
 			blockSize[workerID]/=2;
-		}
 	} else
 		needToRun[workerID] = 0;
 
@@ -854,7 +676,7 @@ function touchEnd(event)
 	touchEvent = 0;
 }
 
-//
+// Engine Code
 
 function setup()
 {
@@ -922,7 +744,6 @@ function drawMandel()
 	rotationFrameStart = performance.now();
 
 	for( i=0; i<workers; i++ )
-		if(( blockSize[i] > 1 ) && ( performance.now() > zoomTime + 500 ))
 			needRedraw = 1;
 		if( needRedraw ) {
 			// Spawn compute workers
@@ -1013,6 +834,7 @@ var status = "main menu"
 startTime = Date.now();
 function gameloop() {
 	if (status == "main menu") {
+		// if (mousePressed) { status = "playing" };
 		status = "playing";
 		window.requestAnimationFrame(gameloop);
 	} else if (status == "playing") {
@@ -1040,9 +862,9 @@ function gameloop() {
 		//reset if zoomed all the way out
 		if (zoom < 0) {zoom = 1; speed = 0.1; xnorm = 0; ynorm = 0; xRate = 0; yRate = 0};
 		time = Date.now();
-	        screenX = Math.round(-xnorm * zoom + canvasWidth/2);
+		screenX = Math.round(-xnorm * zoom + canvasWidth/2);
 		screenY = Math.round(-ynorm * zoom + canvasHeight/2);
-	        startRender(1,1);
+		startRender(1,1);
 	        if( zoom > portalDepth ) {
 			if ( -800 < (((portalX-xnorm) * zoom + 800) / 2) && (((portalX-xnorm) * zoom + 800) / 2) < 800 && -1200 < (((portalY-ynorm) * zoom + 600) / 2) && (((portalX-xnorm) * zoom + 800) / 2) < 1200) {
 				console.log("passed");
@@ -1068,18 +890,15 @@ function gameloop() {
 	        window.requestAnimationFrame(gameloop);
 	} else if (status == "menu") {
 		window.requestAnimationFrame(gameloop);
-
 	} else if (status == "game over") {
 		contextM.fillText("Game Over :(", 400, 300);
 		window.requestAnimationFrame(gameloop);
-
 	} else if (status == "game complete") {
 		contextM.fillText("You won!", 400, 300);
 		contextM.fillText(score, 150, 50);
 		contextM.fillText("score:", 50, 50);
 		contextM.fillText("Refresh to play again", 400, 500);
 		window.requestAnimationFrame(gameloop);
-
 	}
 }
 window.requestAnimationFrame(gameloop);

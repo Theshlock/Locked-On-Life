@@ -70,7 +70,6 @@ const chunkHeight = canvasHeight / workers;
 
 var needRedraw = 0;
 var needRecompute = 1;
-var showAxes = 0;
 var smooth = 0;
 var mc = document.getElementById("mandelCanvas");
 mc.style = "width:" + window.innerWidth + "px; height:" + window.innerHeight + "px;"
@@ -640,77 +639,7 @@ var onRenderEnded = function (e)
 		coarseCtx.putImageData( mCoarseSegment[workerID], 0,lstartLine );
 		mctx.drawImage( coarse, 0, 0 );
 	}
-
-	 if( travelling > 0 ) {
-		updateCoords( canvasWidth/2, canvasHeight/2, "centre" );
-		zoomText.textContent = Math.floor(zoom);
-		// Just zoom out first
-		if( travelling == 2 ) {
-			ldestX = -1.0;
-			ldestY = 0.0;
-			ldestZoom = 300;
-			if( ( zoom > Math.floor(ldestZoom) ) && ( ( ! pointOnScreen( destX, destY ) ) || (zoom > destZoom ) ) ) {
-				//xnorm = (canvasWidth/2-screenX)/zoom;
-				//ynorm = (canvasHeight/2-screenY)/zoom;
-				//zoom += (ldestZoom - zoom) / 10 * benchmarkTime;
-				zoom += Math.ceil( (ldestZoom - zoom) / 10 * (benchmarkTime/4 + 2) );
-
-				if(Math.abs( zoom - ldestZoom ) < 5 )
-					zoom = Math.floor(ldestZoom);
-
-				screenX = Math.round( -xnorm * zoom + canvasWidth/2 );
-				screenY = Math.round( -ynorm * zoom + canvasHeight/2 );
-			}
-			else {
-				travelling = 1;
-				travelDirX = Math.sign( destX - xnorm );
-				travelDirY = Math.sign( destY - ynorm );
-				travelDirZoom = Math.sign( destZoom - zoom );
-			}
-		}
-		// Then zoom in to the new location
-		else {
-			ldestX = destX;
-			ldestY = destY;
-			ldestZoom = destZoom;
-			if( ( xnorm != ldestX ) || ( ynorm != ldestY ) || ( zoom != ldestZoom ) || ( iterations < destIters ) ) {
-				if( iterations < destIters ) {
-					iterations += benchmarkTime * 2;
-					if( iterations > destIters )
-						iterations = destIters;
-					iterSlider.value = iterations;
-					itersInput.value = iterations;
-				}
-				//xnorm = ldestX;
-				//ynorm = ldestY;
-
-				// Snap to destination if "close enough" or if we overshot the mark
-				if(( Math.abs( ( xnorm - ldestX ) * zoom ) < 1 ) || ( Math.sign( ldestX - xnorm ) != travelDirX ))
-					xnorm = ldestX;
-				else
-					xnorm += (ldestX - xnorm ) / Math.log(zoom) / 4 * benchmarkTime * (movingToSaved*2+1);
-				if(( Math.abs( ( ynorm - ldestY ) * zoom ) < 1 ) || ( Math.sign( ldestY - ynorm ) != travelDirY ))
-					ynorm = ldestY;
-				else
-					ynorm += (ldestY - ynorm ) / Math.log(zoom) / 4 * benchmarkTime * (movingToSaved*2+1);
-				if(( Math.abs( ( zoom - ldestZoom ) / ldestZoom * 100 ) < 3 ) || ( Math.sign( ldestZoom - zoom ) != travelDirZoom ))
-					zoom = Math.floor(ldestZoom);
-				else
-					zoom += Math.max( Math.ceil (Math.log(ldestZoom - zoom)*(zoom / 2000) * benchmarkTime * (movingToSaved*4+1)), 1 );
-
-				screenX = Math.round( -xnorm * zoom + canvasWidth/2 );
-				screenY = Math.round( -ynorm * zoom + canvasHeight/2 );
-				//console.log(xnorm,ynorm, screenX,screenY, zoom);
-			}
-			else {
-				travelling = 0;
-				movingToSaved = 0;
-				start = performance.now();
-				zoom = Math.floor(zoom);
-			}
-		}
-	}
-	else if(( blockSize[workerID] >= 2 ) && ( ! eventOccurred ) && ( ! mousePressed )) {
+	if(( blockSize[workerID] >= 2 ) && ( ! eventOccurred ) && ( ! mousePressed )) {
 			needToRun[workerID] = 1;
 			blockSize[workerID]/=2;
 	} else
