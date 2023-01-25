@@ -6,24 +6,10 @@
    Modification and distribution permitted under terms of the Affero GPL version 3
 */
 
-var firstPinchDistance = 0;
 var mousePressed = 0;
-var start = performance.now();
-var rotationFrameStart = performance.now();
-var eventTime = 0;
-var posterTime = 0;
-var zoomTime = 0;
 var iterations = 1000;
-var startLine = 0;
 var maxBlockSize = 8;
-
 var zoom = 1;
-
-var startupTick = 0;
-var startupAnim = 1;
-const startZoom = 300;
-const minZoom = 100;
-const maxZoom = 2000000000000000;
 const canvasWidth = 800*2;
 const canvasHeight = 600*2;
 const scaleFactor = 2;
@@ -31,23 +17,10 @@ const scaleFactor = 2;
 const coarseWidth = canvasWidth/scaleFactor;
 const coarseHeight = canvasHeight/scaleFactor;
 
-var pointerInZoomIn = 0;
-var pointerInZoomOut = 0;
-
-var eventOccurred = 0;
-
 var screenX = canvasWidth/2+400;
 var screenY = canvasHeight/2;
-const xnormMin = -8;
-const xnormMax =  8;
-const ynormMin = -8;
-const ynormMax =  8;
 var xnorm = 0.0;
 var ynorm = 0.0;
-var xmouse = 0.0;
-var ymouse = 0.0;
-
-var dLink;
 
 var blockSize = new Uint8Array(16);
 blockSize[0] = 16;
@@ -738,10 +711,8 @@ var onRenderEnded = function (e)
 		}
 	}
 	else if(( blockSize[workerID] >= 2 ) && ( ! eventOccurred ) && ( ! mousePressed )) {
-		if( performance.now() > zoomTime + 200 ) {
 			needToRun[workerID] = 1;
 			blockSize[workerID]/=2;
-		}
 	} else
 		needToRun[workerID] = 0;
 
@@ -844,7 +815,6 @@ function drawMandel()
 	rotationFrameStart = performance.now();
 
 	for( i=0; i<workers; i++ )
-		if(( blockSize[i] > 1 ) && ( performance.now() > zoomTime + 500 ))
 			needRedraw = 1;
 		if( needRedraw ) {
 			// Spawn compute workers
